@@ -349,6 +349,37 @@ class PDFFindController {
     return true;
   }
 
+  // Please Note: this is only generating regex strategies for a specific
+  // use case. Please do not presume it will correctly regex match
+  // anything, it will only correctly search comma-separated numbers.
+  _calculateRegexMatch(query, pageIndex, pageContent, entireWord) {
+    const matches = [];
+    // do I need a query len var?
+    let matchIdx = -1; // was -query.length
+
+    const sep = "[,. ]*";
+    var generateRegex = ({ term }) => {
+      if (term[0] == "-") {
+        term = term.slice(1);
+      }
+      var pattern = ["\\(*", term.split("").join(sep), "\\)*"].join("");
+      const regex = RegExp(pattern);
+      regex.global = true;
+      return regex;
+    };
+
+    const queryReg = generateRegex(query);
+
+    while (true) {
+      let result = queryReg.exec(pageContent);
+      if (result == null) {
+        break;
+      }
+      matches.push(result.lastIndex);
+    }
+    this._pageMatches[pageIndex] = matches;
+  }
+
   _calculatePhraseMatch(query, pageIndex, pageContent, entireWord) {
     const matches = [];
     const queryLen = query.length;
@@ -413,7 +444,12 @@ class PDFFindController {
   _calculateMatch(pageIndex) {
     let pageContent = this._pageContents[pageIndex];
     let query = this._query;
-    const { caseSensitive, entireWord, phraseSearch } = this._state;
+    const {
+      caseSensitive,
+      entireWord,
+      phraseSearch,
+      regexSearch,
+    } = this._state;
 
     if (query.length === 0) {
       // Do nothing: the matches should be wiped out already.
@@ -427,6 +463,9 @@ class PDFFindController {
 
     if (phraseSearch) {
       this._calculatePhraseMatch(query, pageIndex, pageContent, entireWord);
+    } else if (regexSearch) {
+      console.log("the sight of future regex searching");
+      // this is a TODO
     } else {
       this._calculateWordMatch(query, pageIndex, pageContent, entireWord);
     }
