@@ -1,6 +1,7 @@
 *~
 local.mk
-/* build/ */
+build/
+extensions/
 tags
 .DS_Store
 Makefile
