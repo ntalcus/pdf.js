@@ -5579,6 +5579,16 @@ class PDFFindController {
     this._reset();
 
     eventBus._on("findbarclose", this._onFindBarClose.bind(this));
+
+    this._trueLength = null;
+  }
+
+  get trueLength() {
+    return this._trueLength;
+  }
+
+  set trueLength(length) {
+    this._trueLength = length;
   }
 
   get highlightMatches() {
@@ -5703,6 +5713,7 @@ class PDFFindController {
     this._pageMatches = [];
     this._pageMatchesLength = [];
     this._state = null;
+    this._trueLength = null;
     this._selected = {
       pageIdx: -1,
       matchIdx: -1
@@ -5731,6 +5742,10 @@ class PDFFindController {
     }
 
     return this._normalizedQuery;
+  }
+
+  set _query(value) {
+    this._query = value;
   }
 
   _shouldDirtyMatch(cmd, state) {
@@ -5824,6 +5839,45 @@ class PDFFindController {
     return true;
   }
 
+  _calculateRegexMatch(query, pageIndex, pageContent, entireWord) {
+    const matches = [];
+
+    if (query == null) {
+      return;
+    }
+
+    var generateRegex = ({
+      term
+    }) => {
+      const sep = "[,. ]*";
+
+      if (term[0] == "-") {
+        term = term.slice(1);
+      }
+
+      var pattern = ["\\(*", term.split("").join(sep), "\\)*"].join("");
+      const regex = RegExp(pattern, "g");
+      return regex;
+    };
+
+    const queryReg = generateRegex({
+      term: query
+    });
+
+    while (true) {
+      let result = queryReg.exec(pageContent);
+
+      if (result == null) {
+        break;
+      }
+
+      matches.push(result.index);
+      this._trueLength = result[0].length;
+    }
+
+    this._pageMatches[pageIndex] = matches;
+  }
+
   _calculatePhraseMatch(query, pageIndex, pageContent, entireWord) {
     const matches = [];
     const queryLen = query.length;
@@ -5886,7 +5940,8 @@ class PDFFindController {
     const {
       caseSensitive,
       entireWord,
-      phraseSearch
+      phraseSearch,
+      regexSearch
     } = this._state;
 
     if (query.length === 0) {
@@ -5900,6 +5955,8 @@ class PDFFindController {
 
     if (phraseSearch) {
       this._calculatePhraseMatch(query, pageIndex, pageContent, entireWord);
+    } else if (regexSearch) {
+      this._calculateRegexMatch(query, pageIndex, pageContent, entireWord);
     } else {
       this._calculateWordMatch(query, pageIndex, pageContent, entireWord);
     }
@@ -10795,7 +10852,7 @@ class TextLayerBuilder {
     let i = 0,
         iIndex = 0;
     const end = textContentItemsStr.length - 1;
-    const queryLen = findController.state.query.length;
+    const queryLen = findController.trueLength ? findController.trueLength : findController.state.query.length;
     const result = [];
 
     for (let m = 0, mm = matches.length; m < mm; m++) {

@@ -73,6 +73,21 @@ class PDFFindController {
 
     this._reset();
     eventBus._on("findbarclose", this._onFindBarClose.bind(this));
+    this._trueLength = null;
+  }
+
+  get trueLength() {
+    return this._trueLength;
+  }
+
+  /**
+   * Set a reference to the PDF document in order to search it.
+   * Note that searching is not possible if this method is not called.
+   *
+   * @param {String} length - The true length of the query (for regex searching).
+   */
+  set trueLength(length) {
+    this._trueLength = length;
   }
 
   get highlightMatches() {
@@ -202,6 +217,7 @@ class PDFFindController {
     this._pageMatches = [];
     this._pageMatchesLength = [];
     this._state = null;
+    this._trueLength = null;
     // Currently selected match.
     this._selected = {
       pageIdx: -1,
@@ -235,6 +251,10 @@ class PDFFindController {
       this._normalizedQuery = normalize(this._state.query);
     }
     return this._normalizedQuery;
+  }
+
+  set _query(value) {
+    this._query = value;
   }
 
   _shouldDirtyMatch(cmd, state) {
@@ -354,28 +374,28 @@ class PDFFindController {
   // anything, it will only correctly search comma-separated numbers.
   _calculateRegexMatch(query, pageIndex, pageContent, entireWord) {
     const matches = [];
-    // do I need a query len var?
-    let matchIdx = -1; // was -query.length
-
-    const sep = "[,. ]*";
+    if (query == null) {
+      return;
+    }
     var generateRegex = ({ term }) => {
+      const sep = "[,. ]*";
       if (term[0] == "-") {
         term = term.slice(1);
       }
       var pattern = ["\\(*", term.split("").join(sep), "\\)*"].join("");
-      const regex = RegExp(pattern);
-      regex.global = true;
+      const regex = RegExp(pattern, "g");
       return regex;
     };
 
-    const queryReg = generateRegex(query);
+    const queryReg = generateRegex({ term: query });
 
     while (true) {
       let result = queryReg.exec(pageContent);
       if (result == null) {
         break;
       }
-      matches.push(result.lastIndex);
+      matches.push(result.index);
+      this._trueLength = result[0].length;
     }
     this._pageMatches[pageIndex] = matches;
   }
@@ -464,8 +484,7 @@ class PDFFindController {
     if (phraseSearch) {
       this._calculatePhraseMatch(query, pageIndex, pageContent, entireWord);
     } else if (regexSearch) {
-      console.log("the sight of future regex searching");
-      // this is a TODO
+      this._calculateRegexMatch(query, pageIndex, pageContent, entireWord);
     } else {
       this._calculateWordMatch(query, pageIndex, pageContent, entireWord);
     }
